@@ -254,14 +254,17 @@ export default function CallScreen({
         [call.id],
     );
 
-    const refreshDevices = useCallback(async () => {
+    /** Met à jour les appareils connus ; renvoie true si un casque/Bluetooth est branché. */
+    const refreshDevices = useCallback(async (): Promise<boolean> => {
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
             setCameraCount(devices.filter((d) => d.kind === 'videoinput').length);
             const external = devices.find((d) => (d.kind === 'audioinput' || d.kind === 'audiooutput') && isExternal(d));
             setExternalName(external ? external.label.replace(/\s*\(.*\)\s*$/, '') : null);
+            return !!external;
         } catch {
             // Liste indisponible : les commandes correspondantes restent simplifiées.
+            return false;
         }
     }, []);
 
@@ -314,10 +317,12 @@ export default function CallScreen({
             localStream.current = stream;
             setVideoOn(stream.getVideoTracks().length > 0);
             if (localVideo.current) localVideo.current.srcObject = stream;
-            refreshDevices();
+            // Casque ou Bluetooth déjà branché au départ de l'appel (les noms des appareils ne sont
+            // lisibles qu'une fois le micro autorisé) : le son y va d'emblée, pas dans l'écouteur.
+            refreshDevices().then((hasExternal) => hasExternal && touch && setAudioRoute('external'));
             return stream;
         },
-        [refreshDevices],
+        [refreshDevices, touch],
     );
 
     /** Émetteur vidéo de la connexion (présent même en appel vocal, pour activer la caméra en cours d'appel). */
